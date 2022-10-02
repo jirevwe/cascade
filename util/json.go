@@ -32,7 +32,6 @@ func DecodeJson(body io.Reader, o interface{}) error {
 		default:
 			return err
 		}
-
 	}
 
 	return nil
