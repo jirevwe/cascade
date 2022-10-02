@@ -14,6 +14,7 @@ var ErrConfigNotSet = errors.New("call LoadConfig before this function")
 
 type Configuration struct {
 	MongoDsn  string     `json:"db_dsn"`
+	DbName    string     `json:"db_name"`
 	Relations []Relation `json:"relations"`
 	Port      uint32     `json:"port"`
 }

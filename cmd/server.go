@@ -6,6 +6,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jirevwe/cascade/internal/pkg/config"
+	"github.com/jirevwe/cascade/internal/pkg/datastore"
+	"github.com/jirevwe/cascade/internal/pkg/listen"
 	"github.com/jirevwe/cascade/internal/pkg/server"
 	"github.com/spf13/cobra"
 
@@ -44,6 +46,13 @@ var serverCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal("failed to set env - ", err)
 		}
+
+		db, err := datastore.New(c)
+		if err != nil {
+			log.Fatal("failed to connect to db - ", err)
+		}
+
+		listen.New(c, db)
 
 		srv := server.NewServer(c.Port)
 		srv.SetHandler(chi.NewRouter())

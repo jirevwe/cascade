@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/jirevwe/cascade/internal/pkg/config"
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -22,17 +23,17 @@ var (
 	ErrInvalidPtr        = errors.New("out param is not a valid pointer")
 )
 
-var (
-	// TODO: load this from a config file or env vars
-	collectionKeys = []CollectionKey{CollectionKey("users")}
-)
-
-type MongoStore struct {
-	IsConnected bool
-	Database    *mongo.Database
+type Store struct {
+	database *mongo.Database
 }
 
-type Store interface {
+func (d *Store) GetDatabase() *mongo.Database {
+	return d.database
+}
+
+type DB interface {
+	GetDatabase() *mongo.Database
+
 	FindAll(ctx context.Context, filter bson.M, sort interface{}, projection, results interface{}) error
 
 	UpdateMany(ctx context.Context, filter, payload bson.M, bulk bool) error
@@ -44,19 +45,24 @@ type Store interface {
 
 // mongodb driver -> store (database) -> repo -> service -> handler
 
-var _ Store = &MongoStore{}
+var _ DB = &Store{}
 
 /*
- * New
- * This initialises a new MongoDB repo for the collection
+ * New initialises a new MongoDB collection pool
  */
-func New(database *mongo.Database) Store {
-	MongoStore := &MongoStore{
-		IsConnected: true,
-		Database:    database,
+func New(cfg config.Configuration) (DB, error) {
+	opts := options.Client()
+	opts.ApplyURI(cfg.MongoDsn)
+	client, err := mongo.Connect(context.Background(), opts)
+	if err != nil {
+		return nil, err
 	}
 
-	return MongoStore
+	m := &Store{
+		database: client.Database(cfg.DbName),
+	}
+
+	return m, nil
 }
 
 func IsValidPointer(i interface{}) bool {
@@ -64,7 +70,7 @@ func IsValidPointer(i interface{}) bool {
 	return v.Type().Kind() == reflect.Ptr && !v.IsNil()
 }
 
-func (d *MongoStore) FindAll(ctx context.Context, filter bson.M, sort interface{}, projection, results interface{}) error {
+func (d *Store) FindAll(ctx context.Context, filter bson.M, sort interface{}, projection, results interface{}) error {
 	if !IsValidPointer(results) {
 		return ErrInvalidPtr
 	}
@@ -73,7 +79,8 @@ func (d *MongoStore) FindAll(ctx context.Context, filter bson.M, sort interface{
 	if err != nil {
 		return err
 	}
-	collection := d.Database.Collection(col)
+
+	collection := d.database.Collection(col)
 
 	ops := options.Find()
 
@@ -97,13 +104,13 @@ func (d *MongoStore) FindAll(ctx context.Context, filter bson.M, sort interface{
 	return cursor.All(ctx, results)
 }
 
-func (d *MongoStore) UpdateMany(ctx context.Context, filter, payload bson.M, bulk bool) error {
+func (d *Store) UpdateMany(ctx context.Context, filter, payload bson.M, bulk bool) error {
 	col, err := d.retrieveCollection(ctx)
 	if err != nil {
 		return err
 	}
 
-	collection := d.Database.Collection(col)
+	collection := d.database.Collection(col)
 
 	if !bulk {
 		_, err = collection.UpdateMany(ctx, filter, payload)
@@ -121,17 +128,17 @@ func (d *MongoStore) UpdateMany(ctx context.Context, filter, payload bson.M, bul
 		return err
 	}
 
-	log.Infof("cascade: results of update %s op: %+v\n", collection.Name(), res)
+	log.Infof("store: results of update %s op: %+v", collection.Name(), res)
 
 	return nil
 }
 
-func (d *MongoStore) DeleteMany(ctx context.Context, filter bson.M, hardDelete bool) error {
+func (d *Store) DeleteMany(ctx context.Context, filter bson.M, hardDelete bool) error {
 	col, err := d.retrieveCollection(ctx)
 	if err != nil {
 		return err
 	}
-	collection := d.Database.Collection(col)
+	collection := d.database.Collection(col)
 
 	payload := bson.M{
 		"deleted_at": primitive.NewDateTimeFromTime(time.Now()),
@@ -146,8 +153,8 @@ func (d *MongoStore) DeleteMany(ctx context.Context, filter bson.M, hardDelete b
 	}
 }
 
-func (d *MongoStore) WithTransaction(ctx context.Context, fn func(sessCtx mongo.SessionContext) error) error {
-	session, err := d.Database.Client().StartSession()
+func (d *Store) WithTransaction(ctx context.Context, fn func(sessCtx mongo.SessionContext) error) error {
+	session, err := d.database.Client().StartSession()
 	if err != nil {
 		return err
 	}
@@ -164,10 +171,17 @@ func (d *MongoStore) WithTransaction(ctx context.Context, fn func(sessCtx mongo.
 	return err
 }
 
-func (d *MongoStore) retrieveCollection(ctx context.Context) (string, error) {
-	for _, key := range collectionKeys {
+func (d *Store) retrieveCollection(ctx context.Context) (string, error) {
+	c, err := d.database.ListCollections(ctx, bson.M{})
+	if err != nil {
+		return "", err
+	}
+	defer c.Close(ctx)
+
+	if c.Next(ctx) {
+		key := c.Current.Lookup("name").StringValue()
 		if ctx.Value(CollectionCtx) == key {
-			return string(key), nil
+			return key, nil
 		}
 	}
 
