@@ -1,0 +1,31 @@
+{
+  "db_dsn": "mongodb://localhost:27017/convoy?rs=localhost",
+  "db_name": "test",
+  "port": 4400,
+  "relations": [
+    {
+      "source": {
+        "name": "users",
+        "pk": "uid"
+      },
+      "dest": {
+        "name": "wallets",
+        "fk": "user_id"
+      },
+      "on": "replace",
+      "do": "soft_delete"
+    },
+    {
+      "source": {
+        "name": "users",
+        "pk": "uid"
+      },
+      "dest": {
+        "name": "transactions",
+        "fk": "user_id"
+      },
+      "on": "delete",
+      "do": "hard_delete"
+    }
+  ]
+}
