@@ -8,6 +8,10 @@ type TaskName string
 
 type QueueName string
 
+const DeleteEntityTask TaskName = "DeleteEntityTask"
+
+const DeleteEntityQueue QueueName = "delete_entity_queue"
+
 type QueueError struct {
 	delay time.Duration
 	Err   error

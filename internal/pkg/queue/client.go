@@ -6,7 +6,6 @@ import (
 	"github.com/jaevor/go-nanoid"
 	"github.com/jirevwe/cascade/internal/pkg/config"
 	"github.com/jirevwe/cascade/internal/pkg/util"
-	"github.com/sirupsen/logrus"
 )
 
 type RedisQueue struct {
@@ -47,12 +46,10 @@ func (q *RedisQueue) Write(taskName util.TaskName, queueName util.QueueName, job
 	}
 
 	t := asynq.NewTask(string(taskName), job.Payload, asynq.Queue(string(queueName)), asynq.TaskID(job.ID), asynq.ProcessIn(job.Delay))
-	info, err := q.client.Enqueue(t)
+	_, err := q.client.Enqueue(t)
 	if err != nil {
 		return err
 	}
-
-	logrus.Infof("asynq: %+v", info)
 
 	return nil
 }
@@ -63,9 +60,8 @@ func (q *RedisQueue) Options() QueueOptions {
 
 func (q *RedisQueue) Monitor() *asynqmon.HTTPHandler {
 	h := asynqmon.New(asynqmon.Options{
-		RootPath:          "/queue/monitoring",
-		RedisConnOpt:      q.opts.RedisClient,
-		PrometheusAddress: q.opts.PrometheusAddress,
+		RootPath:     "/queue/monitoring",
+		RedisConnOpt: q.opts.RedisClient,
 	})
 	return h
 }

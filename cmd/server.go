@@ -4,11 +4,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/jirevwe/cascade/internal/pkg/config"
 	"github.com/jirevwe/cascade/internal/pkg/datastore"
 	"github.com/jirevwe/cascade/internal/pkg/listen"
+	"github.com/jirevwe/cascade/internal/pkg/queue"
 	"github.com/jirevwe/cascade/internal/pkg/server"
+	"github.com/jirevwe/cascade/internal/pkg/tasks"
+	"github.com/jirevwe/cascade/internal/pkg/util"
 	"github.com/spf13/cobra"
 
 	log "github.com/sirupsen/logrus"
@@ -34,30 +36,56 @@ var serverCmd = &cobra.Command{
 
 		err := os.Setenv("TZ", "") // Use UTC by default :)
 		if err != nil {
-			log.Fatal("failed to set env - ", err)
+			log.Fatal("server: failed to set env - ", err)
 		}
 
 		err = config.LoadConfig(configFile)
 		if err != nil {
-			log.Fatal("failed to load config - ", err)
+			log.Fatal("server: failed to load config - ", err)
 		}
 
 		c, err := config.Get()
 		if err != nil {
-			log.Fatal("failed to set env - ", err)
+			log.Fatal("server: failed to set env - ", err)
+		}
+
+		rdb, err := queue.NewRedis(c.RedisDsn)
+		if err != nil {
+			log.Fatal("server: failed to connect to redis - ", err)
+		}
+
+		queueNames := map[string]int{string(util.DeleteEntityQueue): 10}
+		opts := queue.QueueOptions{
+			Names:        queueNames,
+			RedisClient:  rdb,
+			RedisAddress: c.RedisDsn,
+		}
+		q := queue.NewQueue(opts)
+
+		// register worker.
+		consumer, err := tasks.NewConsumer(q)
+		if err != nil {
+			log.Fatal("server: failed to create consumer - ", err)
 		}
 
 		db, err := datastore.New(c)
 		if err != nil {
-			log.Fatal("failed to connect to db - ", err)
+			log.Fatal("server: failed to connect to db - ", err)
 		}
 
-		listen.New(c, db)
+		consumer.RegisterHandlers(util.DeleteEntityTask, tasks.DeleteEntity(db, rdb))
+
+		//start worker
+		log.Info("server: starting workers...")
+		consumer.Start()
+
+		// starts mongodb change stream and goroutines
+		listen.New(c, db, rdb, q)
 
 		srv := server.NewServer(c.Port)
-		srv.SetHandler(chi.NewRouter())
+		srv.SetHandler(q.(*queue.RedisQueue).Monitor())
 
-		log.Infof("server running on port %v", c.Port)
+		log.Infof("server: running on port %v", c.Port)
 		srv.Listen()
 	},
 }

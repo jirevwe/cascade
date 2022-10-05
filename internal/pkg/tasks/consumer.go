@@ -6,6 +6,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/jirevwe/cascade/internal/pkg/queue"
+	"github.com/jirevwe/cascade/internal/pkg/util"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -43,7 +44,7 @@ func (c *Consumer) Start() {
 	}
 }
 
-func (c *Consumer) RegisterHandlers(taskName string, handler func(context.Context, *asynq.Task) error) {
+func (c *Consumer) RegisterHandlers(taskName util.TaskName, handler func(context.Context, *asynq.Task) error) {
 	c.mux.HandleFunc(string(taskName), handler)
 }
 
