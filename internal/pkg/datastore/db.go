@@ -178,8 +178,13 @@ func (d *Store) retrieveCollection(ctx context.Context) (string, error) {
 	}
 	defer c.Close(ctx)
 
-	if c.Next(ctx) {
+	for {
+		if !c.Next(ctx) {
+			break
+		}
+
 		key := c.Current.Lookup("name").StringValue()
+		log.Println(key, ctx.Value(CollectionCtx))
 		if ctx.Value(CollectionCtx) == key {
 			return key, nil
 		}

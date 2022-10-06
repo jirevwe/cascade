@@ -43,7 +43,9 @@ func DeleteEntity(store datastore.DB, rdb *queue.Redis) func(ctx context.Context
 			return err
 		}
 
-		logrus.Info("id: ", filterStr)
+		logrus.Info("filter: ", filterStr)
+		logrus.Info("update: ", updateStr)
+		logrus.Info("relation: ", relationStr)
 
 		var filter primitive.M
 		err = json.Unmarshal([]byte(filterStr), &filter)
@@ -59,17 +61,17 @@ func DeleteEntity(store datastore.DB, rdb *queue.Redis) func(ctx context.Context
 			return err
 		}
 
-		var relation config.Relation
+		var relation config.Entity
 		err = json.Unmarshal([]byte(relationStr), &relation)
 		if err != nil {
 			logrus.Errorf("json: an error occured unmarshaling relation - %+v", err)
 			return err
 		}
 
-		ctx = context.WithValue(ctx, datastore.CollectionCtx, relation.Source.Name)
+		ctx = context.WithValue(ctx, datastore.CollectionCtx, relation.Name)
 		err = store.UpdateMany(ctx, filter, update, true)
 		if err != nil {
-			logrus.Errorf("mongodb: an error occured updating %s - %+v", relation.Source.Name, err)
+			logrus.Errorf("mongodb: an error occured updating %s - %+v", relation.Name, err)
 			return err
 		}
 
