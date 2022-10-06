@@ -22,11 +22,6 @@ type (
 	OperationType string
 )
 
-type Entity struct {
-	ID        primitive.ObjectID `bson:"_id"`
-	DeletedAt primitive.DateTime `bson:"deleted_at"`
-}
-
 func (o OperationType) String() string {
 	return string(o)
 }
@@ -45,7 +40,7 @@ func New(cfg config.Configuration, db datastore.DB, rdb *queue.Redis, queue queu
 func listenToChangeStream(store datastore.DB, rdb *queue.Redis, q queue.Queuer, relation config.Relation) {
 	ctx := context.Background()
 	db := store.GetDatabase()
-	coll := db.Collection(relation.Dest.Name)
+	coll := db.Collection(relation.Parent.Name)
 
 	cs, err := coll.Watch(ctx, mongo.Pipeline{bson.D{
 		{Key: "$match", Value: bson.D{
@@ -89,62 +84,64 @@ func listenToChangeStream(store datastore.DB, rdb *queue.Redis, q queue.Queuer, 
 								continue
 							}
 
-							id := doc["_id"].(primitive.ObjectID).Hex()
-							filter := bson.M{relation.Source.PrimaryKey: doc[relation.Dest.ForeignKey].(string)}
-							update := bson.M{"$set": bson.M{"deleted_at": deletedAt}}
+							for _, child := range relation.Children {
+								id := doc["_id"].(primitive.ObjectID).Hex()
+								filter := bson.M{child.ForeignKey: doc[relation.Parent.PrimaryKey].(string)}
+								update := bson.M{"$set": bson.M{"deleted_at": deletedAt}}
 
-							// marshall into bytes
-							filterBytes, err := json.Marshal(filter)
-							if err != nil {
-								log.Errorf("json: could not marshal filter map - %+v", err)
-								continue
+								// marshall into bytes
+								filterBytes, err := json.Marshal(filter)
+								if err != nil {
+									log.Errorf("json: could not marshal filter map - %+v", err)
+									continue
+								}
+
+								updateBytes, err := json.Marshal(update)
+								if err != nil {
+									log.Errorf("json: could not marshal filter map - %+v", err)
+									continue
+								}
+
+								relationBytes, err := json.Marshal(child)
+								if err != nil {
+									log.Errorf("json: could not marshal filter map - %+v", err)
+									continue
+								}
+
+								// write to redis
+								cmd := rdb.Client().Set(ctx, fmt.Sprintf("%s:filter", id), filterBytes, time.Hour)
+								if cmd.Err() != nil {
+									log.Errorf("redis: could not write filter - %+v", cmd.Err())
+									continue
+								}
+
+								cmd = rdb.Client().Set(ctx, fmt.Sprintf("%s:update", id), updateBytes, time.Hour)
+								if cmd.Err() != nil {
+									log.Errorf("redis: could not write update - %+v", cmd.Err())
+									continue
+								}
+
+								cmd = rdb.Client().Set(ctx, fmt.Sprintf("%s:relation", id), relationBytes, time.Hour)
+								if cmd.Err() != nil {
+									log.Errorf("redis: could not write relation - %+v", cmd.Err())
+									continue
+								}
+
+								// write to queue
+								job := queue.Job{
+									ID:      id,
+									Payload: json.RawMessage(id),
+									Delay:   1 * time.Second,
+								}
+
+								err = q.Write(util.DeleteEntityTask, util.DeleteEntityQueue, &job)
+								if err != nil {
+									log.Errorf("asynq: could not write to the queue - %+v", err)
+									continue
+								}
+
+								logrus.Infof("listen: added records for %s to the queue", id)
 							}
-
-							updateBytes, err := json.Marshal(update)
-							if err != nil {
-								log.Errorf("json: could not marshal filter map - %+v", err)
-								continue
-							}
-
-							relationBytes, err := json.Marshal(relation)
-							if err != nil {
-								log.Errorf("json: could not marshal filter map - %+v", err)
-								continue
-							}
-
-							// write to redis
-							cmd := rdb.Client().Set(ctx, fmt.Sprintf("%s:filter", id), filterBytes, time.Hour)
-							if cmd.Err() != nil {
-								log.Errorf("redis: could not write filter - %+v", cmd.Err())
-								continue
-							}
-
-							cmd = rdb.Client().Set(ctx, fmt.Sprintf("%s:update", id), updateBytes, time.Hour)
-							if cmd.Err() != nil {
-								log.Errorf("redis: could not write update - %+v", cmd.Err())
-								continue
-							}
-
-							cmd = rdb.Client().Set(ctx, fmt.Sprintf("%s:relation", id), relationBytes, time.Hour)
-							if cmd.Err() != nil {
-								log.Errorf("redis: could not write relation - %+v", cmd.Err())
-								continue
-							}
-
-							// write to queue
-							job := queue.Job{
-								ID:      id,
-								Payload: json.RawMessage(id),
-								Delay:   1 * time.Second,
-							}
-
-							err = q.Write(util.DeleteEntityTask, util.DeleteEntityQueue, &job)
-							if err != nil {
-								log.Errorf("asynq: could not write to the queue - %+v", err)
-								continue
-							}
-
-							logrus.Infof("listen: added records for %s to the queue", id)
 						}
 					}
 				}

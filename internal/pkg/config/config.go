@@ -21,19 +21,15 @@ type Configuration struct {
 }
 
 type Relation struct {
-	Source *SourceRelation  `json:"source"`
-	Dest   *ForeignRelation `json:"dest"`
-	On     string           `json:"on"`
-	Do     string           `json:"do"`
+	Parent   *Entity   `json:"parent"`
+	Children []Entity `json:"children"`
+	On       string    `json:"on"`
+	Do       string    `json:"do"`
 }
 
-type SourceRelation struct {
+type Entity struct {
 	Name       string `json:"name"`
 	PrimaryKey string `json:"pk"`
-}
-
-type ForeignRelation struct {
-	Name       string `json:"name"`
 	ForeignKey string `json:"fk"`
 }
 

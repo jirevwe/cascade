@@ -1,31 +1,26 @@
 {
   "mongo_dsn": "mongodb://localhost:27017/convoy?rs=localhost",
   "db_name": "test",
+  "redis_dsn": "redis://localhost:6379/0",
   "port": 4400,
   "relations": [
     {
-      "source": {
+      "parent": {
         "name": "users",
         "pk": "uid"
       },
-      "dest": {
-        "name": "wallets",
-        "fk": "user_id"
-      },
+      "children": [
+        {
+          "name": "wallets",
+          "fk": "user_id"
+        },
+        {
+          "name": "transactions",
+          "fk": "user_id"
+        }
+      ],
       "on": "replace",
       "do": "soft_delete"
-    },
-    {
-      "source": {
-        "name": "users",
-        "pk": "uid"
-      },
-      "dest": {
-        "name": "transactions",
-        "fk": "user_id"
-      },
-      "on": "delete",
-      "do": "hard_delete"
     }
   ]
 }
