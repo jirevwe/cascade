@@ -1,5 +1,5 @@
 {
-  "db_dsn": "mongodb://localhost:27017/convoy?rs=localhost",
+  "mongo_dsn": "mongodb://localhost:27017/convoy?rs=localhost",
   "db_name": "test",
   "port": 4400,
   "relations": [
