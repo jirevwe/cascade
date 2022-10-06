@@ -102,36 +102,31 @@ func listenToChangeStream(store datastore.DB, rdb *queue.Redis, q queue.Queuer, 
 									continue
 								}
 
-								relationBytes, err := json.Marshal(child)
-								if err != nil {
-									log.Errorf("json: could not marshal filter map - %+v", err)
-									continue
-								}
-
 								// write to redis
-								cmd := rdb.Client().Set(ctx, fmt.Sprintf("%s:filter", id), filterBytes, time.Hour)
+								cmd := rdb.Client().Set(ctx, fmt.Sprintf("%s:%s:filter", child.Name, id), filterBytes, time.Hour)
 								if cmd.Err() != nil {
 									log.Errorf("redis: could not write filter - %+v", cmd.Err())
 									continue
 								}
 
-								cmd = rdb.Client().Set(ctx, fmt.Sprintf("%s:update", id), updateBytes, time.Hour)
+								cmd = rdb.Client().Set(ctx, fmt.Sprintf("%s:%s:update", child.Name, id), updateBytes, time.Hour)
 								if cmd.Err() != nil {
 									log.Errorf("redis: could not write update - %+v", cmd.Err())
 									continue
 								}
 
-								cmd = rdb.Client().Set(ctx, fmt.Sprintf("%s:relation", id), relationBytes, time.Hour)
-								if cmd.Err() != nil {
-									log.Errorf("redis: could not write relation - %+v", cmd.Err())
+								child.Id = id
+								childBytes, err := json.Marshal(child)
+								if err != nil {
+									log.Errorf("json: could not marshal filter map - %+v", err)
 									continue
 								}
 
 								// write to queue
 								job := queue.Job{
-									ID:      id,
-									Payload: json.RawMessage(id),
-									Delay:   1 * time.Second,
+									ID:      fmt.Sprintf("%s_%s", id, child.Name),
+									Payload: childBytes,
+									Delay:   time.Microsecond,
 								}
 
 								err = q.Write(util.DeleteEntityTask, util.DeleteEntityQueue, &job)
