@@ -22,15 +22,16 @@ type Configuration struct {
 
 type Relation struct {
 	Parent   *Entity   `json:"parent"`
-	Children []Entity `json:"children"`
+	Children []*Entity `json:"children"`
 	On       string    `json:"on"`
 	Do       string    `json:"do"`
 }
 
 type Entity struct {
+	Id         string `json:"id,omitempty"`
 	Name       string `json:"name"`
-	PrimaryKey string `json:"pk"`
-	ForeignKey string `json:"fk"`
+	PrimaryKey string `json:"pk,omitempty"`
+	ForeignKey string `json:"fk,omitempty"`
 }
 
 // Get fetches the application configuration. LoadConfig must have been called
