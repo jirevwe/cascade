@@ -37,7 +37,7 @@ jobs:
         run: go mod download && go mod verify
 
       - name: Build app to make sure there are zero issues
-        run: go build -o rs .
+        run: go build -o cascade ./cmd/*.go
 
       - name: Go vet
         run: go vet ./...
