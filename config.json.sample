@@ -1,7 +1,7 @@
 {
   "mongo_dsn": "mongodb://localhost:27017/convoy?rs=localhost",
   "db_name": "test",
-  "redis_dsn": "redis://localhost:6379/0",
+  "redis_dsn": "redis://localhost:6379/1",
   "port": 4400,
   "relations": [
     {
@@ -16,7 +16,7 @@
         },
         {
           "name": "transactions",
-          "fk": "user_id"
+          "fk": "sender_id"
         }
       ],
       "on": "replace",
