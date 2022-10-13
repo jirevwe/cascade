@@ -51,7 +51,7 @@ Create a config file, this is a sample config file
 
 ```json
 {
-  "mongo_dsn": "mongodb://localhost:27017/convoy?rs=localhost",
+  "mongo_dsn": "mongodb://localhost:27017/test?rs=localhost",
   "db_name": "test",
   "redis_dsn": "redis://localhost:6379/1",
   "port": 4400,
