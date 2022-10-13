@@ -29,9 +29,17 @@ jobs:
           DOCKER_REGISTRY_URL: ghcr.io
 
       - name: Build latest image
+        run: docker build -t ghcr.io/${GITHUB_REPOSITORY}:latest .
+
+      - name: Build tagged image
         run: docker build -t ghcr.io/${GITHUB_REPOSITORY}:${{ steps.get_version.outputs.tag }} .
 
-      - name: Push
+      - name: Push latest image
+        uses: actions-hub/docker@master
+        with:
+          args: push ghcr.io/${GITHUB_REPOSITORY}:latest
+
+      - name: Push tagged image
         uses: actions-hub/docker@master
         with:
           args: push ghcr.io/${GITHUB_REPOSITORY}:${{ steps.get_version.outputs.tag }}
