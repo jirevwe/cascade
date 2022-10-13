@@ -4,7 +4,7 @@ tag=$1
 echo $tag > ./internal/pkg/version/VERSION
 
 # Commit version number & push
-git add VERSION
+git add ./internal/pkg/version/VERSION
 git commit -m "Bump version to $tag"
 git push origin
 
