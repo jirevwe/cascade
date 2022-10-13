@@ -19,7 +19,7 @@ jobs:
 
       - name: Get the version
         id: get_version
-        run: echo ::set-output name=tag::$(cat VERSION)
+        run: echo ::set-output name=tag::$(cat ./internal/pkg/version/VERSION)
 
       - name: Authenticate
         uses: actions-hub/docker/login@master
